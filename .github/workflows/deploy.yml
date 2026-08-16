@@ -33,3 +33,21 @@ jobs:
           remote_path: '/home/xs501620/rental-space-map.jp/public_html/'
           sftp_only: true
           delete_remote_files: false
+
+      # SFTP は「消えたファイル」をサーバから削除しない（delete_remote_files: false）。
+      # そのため、リポジトリから消したファイルがサーバに残り続ける。
+      #
+      # 実際、静的な sitemap.xml が残っていて、動的な /sitemap.xml のルートより
+      # 先に Web サーバがそれを返していた。中身は Vercel のプレビュードメインのまま
+      # だったため、サイトマップが別ドメインのURLを並べる状態になっていた。
+      #
+      # rm -f なので、既に無ければ何もしない。
+      - name: Remove stale files left on the server
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -p 10022 -o StrictHostKeyChecking=no \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
+            'rm -f /home/xs501620/rental-space-map.jp/public_html/sitemap.xml'
+          rm -f ~/.ssh/deploy_key
