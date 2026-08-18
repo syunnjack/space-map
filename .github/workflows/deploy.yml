@@ -51,3 +51,27 @@ jobs:
             "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
             'rm -f /home/xs501620/rental-space-map.jp/public_html/sitemap.xml'
           rm -f ~/.ssh/deploy_key
+
+      # public/ しか送っていなかったため、blade を直してもデプロイでは反映
+      # されなかった。サーバ上では public_html が app/public へのシンボリック
+      # リンクで、Laravel 本体は <ドメイン>/app/ に置かれている。
+      #   ~/rental-space-map.jp/app/            リポジトリのルート相当
+      #   ~/rental-space-map.jp/public_html  -> app/public
+      #
+      # 消す操作は一切しない。views の更新だけを届ける。
+      # Blade はコンパイル済みビューと元ファイルの更新時刻を比べるので、
+      # アップロードすれば次のリクエストで作り直される。
+      #
+      # 注意: app/ routes/ config/ は対象外なので、コントローラやルートを
+      # 変えたときは別途デプロイが要る。
+      - name: Deploy views to Xserver via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.SSH_USERNAME }}
+          server: ${{ secrets.SSH_HOST }}
+          port: 10022
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          local_path: './resources/*'
+          remote_path: '/home/xs501620/rental-space-map.jp/app/resources/'
+          sftp_only: true
+          delete_remote_files: false
