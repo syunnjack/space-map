@@ -1,4 +1,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://space-map.example.com/sitemap.xml
+Sitemap: https://rental-space-map.jp/sitemap.xml
