@@ -129,19 +129,27 @@ jobs:
       #   - migrate: 追加した列（city, facility_type, source など）を作る
       #   - OsmSpaceSeeder: 施設データを入れ直す（source+source_ref で上書き）
       #   - キャッシュ削除: ルートと設定を読み直させる
-      # メモリ上限を上げているのは、件数の多い取り込みで既定値だと落ちるため。
+      #
+      # php は PATH に無いことがあるため、実体を探してから使う。
+      # 素の `php` を呼んだ初回のデプロイは、この行で失敗して取り込みが走らなかった。
       - name: Run migrations and import spaces
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key -p 10022 -o StrictHostKeyChecking=no \
-            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
-            'cd /home/xs501620/rental-space-map.jp/app \
-              && php artisan config:clear \
-              && php artisan route:clear \
-              && php artisan view:clear \
-              && php artisan cache:clear \
-              && php artisan migrate --force \
-              && php -d memory_limit=512M artisan db:seed --class=OsmSpaceSeeder --force'
-          rm -f ~/.ssh/deploy_key
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: 10022
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 30m
+          script: |
+            set -e
+            cd ~/rental-space-map.jp/app
+            PHP=$(command -v php8.3 || command -v php || echo /opt/php-8.3.30/bin/php)
+            echo "php: $PHP ($($PHP -v | head -1))"
+            $PHP artisan config:clear
+            $PHP artisan route:clear
+            $PHP artisan view:clear
+            $PHP artisan cache:clear
+            $PHP artisan migrate --force
+            $PHP -d memory_limit=512M artisan db:seed --class=OsmSpaceSeeder --force
+            echo "--- 取り込み後の施設件数 ---"
+            $PHP artisan tinker --execute="echo \App\Models\Venue::count();"
