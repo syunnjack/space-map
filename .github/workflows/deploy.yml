@@ -62,8 +62,6 @@ jobs:
       # Blade はコンパイル済みビューと元ファイルの更新時刻を比べるので、
       # アップロードすれば次のリクエストで作り直される。
       #
-      # 注意: app/ routes/ config/ は対象外なので、コントローラやルートを
-      # 変えたときは別途デプロイが要る。
       - name: Deploy views to Xserver via SFTP
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
@@ -75,3 +73,75 @@ jobs:
           remote_path: '/home/xs501620/rental-space-map.jp/app/resources/'
           sftp_only: true
           delete_remote_files: false
+
+      # コントローラ・ルート・モデル・取り込みデータもサーバへ送る。
+      # これらを送っていなかったため、都道府県ページを足しても本番では
+      # ルートが無く404になっていた。
+      - name: Deploy application code to Xserver via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.SSH_USERNAME }}
+          server: ${{ secrets.SSH_HOST }}
+          port: 10022
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          local_path: './app/*'
+          remote_path: '/home/xs501620/rental-space-map.jp/app/app/'
+          sftp_only: true
+          delete_remote_files: false
+
+      - name: Deploy routes to Xserver via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.SSH_USERNAME }}
+          server: ${{ secrets.SSH_HOST }}
+          port: 10022
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          local_path: './routes/*'
+          remote_path: '/home/xs501620/rental-space-map.jp/app/routes/'
+          sftp_only: true
+          delete_remote_files: false
+
+      - name: Deploy config to Xserver via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.SSH_USERNAME }}
+          server: ${{ secrets.SSH_HOST }}
+          port: 10022
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          local_path: './config/*'
+          remote_path: '/home/xs501620/rental-space-map.jp/app/config/'
+          sftp_only: true
+          delete_remote_files: false
+
+      - name: Deploy database files to Xserver via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.SSH_USERNAME }}
+          server: ${{ secrets.SSH_HOST }}
+          port: 10022
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          local_path: './database/*'
+          remote_path: '/home/xs501620/rental-space-map.jp/app/database/'
+          sftp_only: true
+          delete_remote_files: false
+
+      # 送った内容を反映させる。
+      #   - migrate: 追加した列（city, facility_type, source など）を作る
+      #   - OsmSpaceSeeder: 施設データを入れ直す（source+source_ref で上書き）
+      #   - キャッシュ削除: ルートと設定を読み直させる
+      # メモリ上限を上げているのは、件数の多い取り込みで既定値だと落ちるため。
+      - name: Run migrations and import spaces
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -p 10022 -o StrictHostKeyChecking=no \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
+            'cd /home/xs501620/rental-space-map.jp/app \
+              && php artisan config:clear \
+              && php artisan route:clear \
+              && php artisan view:clear \
+              && php artisan cache:clear \
+              && php artisan migrate --force \
+              && php -d memory_limit=512M artisan db:seed --class=OsmSpaceSeeder --force'
+          rm -f ~/.ssh/deploy_key

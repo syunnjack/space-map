@@ -1,7 +1,12 @@
 @extends('layouts.plain')
 
-@section('title', $venue->name . ' の空き枠・口コミ | ' . config('app.name'))
-@section('description', $venue->name . '（' . ($venue->area ?? 'レンタルスペース') . '）の場所・直前の空き枠・利用者の口コミを確認できます。')
+@php
+    $venuePlace = trim(($venue->area ?? '').($venue->city && $venue->city !== $venue->area ? $venue->city : ''));
+    $venueKind = $venue->facility_type ?: 'レンタルスペース';
+@endphp
+
+@section('title', $venue->name . '（' . ($venuePlace ?: $venueKind) . '）の空き枠・口コミ | ' . config('app.name'))
+@section('description', $venue->name . '（' . trim($venuePlace . ' ' . $venueKind) . '）の場所・連絡先・直前の空き枠・利用者の口コミを確認できます。')
 
 @push('structured-data')
 <script type="application/ld+json">
@@ -10,7 +15,12 @@
   '@type' => 'BreadcrumbList',
   'itemListElement' => [
       ['@type' => 'ListItem', 'position' => 1, 'name' => config('app.name'), 'item' => url('/')],
-      ['@type' => 'ListItem', 'position' => 2, 'name' => $venue->name, 'item' => url("/venues/{$venue->id}")],
+      ...($venue->area_slug ? [[
+          '@type' => 'ListItem', 'position' => 2, 'name' => $venue->area,
+          'item' => route('venues.area', $venue->area_slug),
+      ]] : []),
+      ['@type' => 'ListItem', 'position' => $venue->area_slug ? 3 : 2, 'name' => $venue->name,
+       'item' => url("/venues/{$venue->id}")],
   ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
 </script>
@@ -38,7 +48,18 @@
       <h1 class="h3 fw-bold mb-3">{{ $venue->name }}</h1>
       <p class="text-muted mb-2">{{ $venue->description }}</p>
       @if($venue->area)
-        <p class="text-secondary small mb-1">エリア: {{ $venue->area }}</p>
+        <p class="text-secondary small mb-1">
+          エリア:
+          @if($venue->area_slug)
+            <a href="{{ route('venues.area', $venue->area_slug) }}">{{ $venue->area }}</a>
+          @else
+            {{ $venue->area }}
+          @endif
+          @if($venue->city && $venue->city !== $venue->area) {{ $venue->city }} @endif
+        </p>
+      @endif
+      @if($venue->facility_type)
+        <p class="text-secondary small mb-1">種別: {{ $venue->facility_type }}</p>
       @endif
       @if($venue->address)
         <p class="text-secondary small mb-1">住所: {{ $venue->address }}</p>
@@ -50,7 +71,25 @@
         <p class="text-secondary small mb-1">収容人数: {{ $venue->capacity }}名</p>
       @endif
       @if($venue->hourly_rate)
-        <p class="text-secondary small mb-4">目安料金: {{ number_format($venue->hourly_rate) }}円/時間</p>
+        <p class="text-secondary small mb-1">目安料金: {{ number_format($venue->hourly_rate) }}円/時間</p>
+      @endif
+      @if($venue->opening_hours)
+        <p class="text-secondary small mb-1">開館時間（OpenStreetMapの記載）: {{ $venue->opening_hours }}</p>
+      @endif
+      @if($venue->website)
+        <p class="text-secondary small mb-1">
+          公式サイト: <a href="{{ $venue->website }}" rel="nofollow noopener" target="_blank">{{ $venue->website }}</a>
+        </p>
+      @endif
+
+      @if($venue->is_from_osm)
+        <div class="alert alert-light border small mt-3 mb-4">
+          この施設の名称・場所は
+          <a href="https://www.openstreetmap.org/{{ $venue->source_ref }}" rel="nofollow noopener" target="_blank">OpenStreetMap</a>
+          のデータ（© OpenStreetMap contributors、ODbL 1.0）をもとに掲載しています。
+          貸室として借りられるかどうか、料金、予約方法は施設によって異なります。空き枠・口コミは利用者の投稿です。
+          ご利用の前に、必ず施設へ直接ご確認ください。
+        </div>
       @endif
 
       <div class="mb-3">

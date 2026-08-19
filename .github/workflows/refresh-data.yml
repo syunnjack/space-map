@@ -1,0 +1,43 @@
+name: Refresh space data
+
+# OpenStreetMap から公民館・コミュニティセンター・会議施設を取り直す。
+# 差分があればコミットし、その push で通常のデプロイが動いて本番に反映される。
+# 地図から消えた施設は取り込み時に更新されなくなるだけなので、名称・場所の
+# 変更が主な差分になる。
+on:
+  schedule:
+    - cron: '0 18 5 * *'  # 毎月5日 03:00（日本時間）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Overpass へは都道府県ごとに3秒あけて問い合わせる。1時間ほどかかる。
+      - name: Rebuild spaces-osm.json
+        run: python scripts/build-space-data.py
+
+      - name: Commit if the data changed
+        run: |
+          if git diff --quiet -- database/data/spaces-osm.json; then
+            echo "変更なし。コミットしません。"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add database/data/spaces-osm.json
+          git commit -m "施設データをOpenStreetMapの最新の内容に更新する
+
+          scripts/build-space-data.py の定期実行による更新。
+          出典: OpenStreetMap contributors（ODbL 1.0）"
+          git push

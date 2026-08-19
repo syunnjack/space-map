@@ -15,6 +15,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // 掲載する施設は、出典をたどれるものだけにする。
+        $this->call(OsmSpaceSeeder::class);
+
         // User::factory(10)->create();
 
         User::factory()->create([

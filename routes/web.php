@@ -24,6 +24,9 @@ Route::post('/venues/{venue}/booking-request', [BookingRequestController::class,
 Route::view('/thanks', 'venues.thanks')->name('venues.thanks');
 
 Route::view('/about', 'about')->name('about');
+Route::get('/area/{areaSlug}', [VenueController::class, 'area'])
+    ->whereAlpha('areaSlug')
+    ->name('venues.area');
 Route::get('/sitemap.xml', [VenueController::class, 'sitemap'])->name('sitemap');
 
 // LINE連携（お気に入りスペースの新着空き枠通知／予約問い合わせ受付）
